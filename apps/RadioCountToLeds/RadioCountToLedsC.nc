@@ -68,7 +68,7 @@ module RadioCountToLedsC @safe() {
 implementation {
 
   message_t packet;
-
+  radio_count_msg_t local;
   bool locked;
   uint16_t counter = 0;
   
@@ -100,7 +100,7 @@ implementation {
       if (rcm == NULL) {
 	return;
       }
-
+      rcm->id = TOS_NODE_ID;
       rcm->counter = counter;
       if (call AMSend.send(AM_BROADCAST_ADDR, &packet, sizeof(radio_count_msg_t)) == SUCCESS) {
 	dbg("RadioCountToLedsC", "RadioCountToLedsC: packet sent.\n", counter);	
@@ -111,10 +111,10 @@ implementation {
 
   event message_t* Receive.receive(message_t* bufPtr, 
 				   void* payload, uint8_t len) {
-    dbg("RadioCountToLedsC", "Received packet of length %hhu.\n", len);
     if (len != sizeof(radio_count_msg_t)) {return bufPtr;}
     else {
       radio_count_msg_t* rcm = (radio_count_msg_t*)payload;
+      dbg("RadioCountToLedsC", "Received packet form  %hhu.\n", rcm->id);
       if (rcm->counter & 0x1) {
 	call Leds.led0On();
       }
