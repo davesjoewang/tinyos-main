@@ -41,9 +41,13 @@
 #ifndef RADIO_COUNT_TO_LEDS_H
 #define RADIO_COUNT_TO_LEDS_H
 
+#define MAX_ROUND    10;
+#define MAX_NEIGHBOR 100;
+
 typedef nx_struct radio_count_msg {
-  nx_uint16_t counter;
   nx_uint16_t id;
+  nx_uint16_t counter;
+  nx_uint16_t neighbor[10];
 } radio_count_msg_t;
 
 enum {

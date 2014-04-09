@@ -69,6 +69,9 @@ implementation {
   App.Leds -> LedsC;
   App.MilliTimer -> TimerMilliC;
   App.Packet -> AMSenderC;
+
+  components new PoolC(message_t, 12);
+  App.Pool -> PoolC;
 }
 
 

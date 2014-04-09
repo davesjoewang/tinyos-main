@@ -63,6 +63,7 @@ module RadioCountToLedsC @safe() {
     interface Timer<TMilli> as MilliTimer;
     interface SplitControl as AMControl;
     interface Packet;
+    interface Pool<message_t>;
   }
 }
 implementation {
@@ -74,6 +75,7 @@ implementation {
   
   event void Boot.booted() {
     call AMControl.start();
+    local.id = TOS_NODE_ID;
   }
 
   event void AMControl.startDone(error_t err) {
@@ -90,6 +92,12 @@ implementation {
   }
   
   event void MilliTimer.fired() {
+    message_t *pkt;
+    /* get a free packet */
+    pkt = call Pool.get();
+    if (pkt)
+    {
+        /* code to send the packet */
     counter++;
     dbg("RadioCountToLedsC", "RadioCountToLedsC: timer fired, counter is %hu.\n", counter);
     if (locked) {
@@ -98,23 +106,31 @@ implementation {
     else {
       radio_count_msg_t* rcm = (radio_count_msg_t*)call Packet.getPayload(&packet, sizeof(radio_count_msg_t));
       if (rcm == NULL) {
-	return;
+        return;
       }
-      rcm->id = TOS_NODE_ID;
+      rcm->id = local.id;
       rcm->counter = counter;
       if (call AMSend.send(AM_BROADCAST_ADDR, &packet, sizeof(radio_count_msg_t)) == SUCCESS) {
-	dbg("RadioCountToLedsC", "RadioCountToLedsC: packet sent.\n", counter);	
-	locked = TRUE;
+        dbg("RadioCountToLedsC", "RadioCountToLedsC: packet %hhu sent.\n",local.id);
+        locked = TRUE;
       }
     }
-  }
+
+
+    }
+ }
 
   event message_t* Receive.receive(message_t* bufPtr, 
 				   void* payload, uint8_t len) {
+    if (call Pool.empty())
+        return bufPtr; // memory exahusted;
+
     if (len != sizeof(radio_count_msg_t)) {return bufPtr;}
     else {
       radio_count_msg_t* rcm = (radio_count_msg_t*)payload;
+      dbg("RadioCountToLedsC", "Received packet of length %hhu.\n", len);
       dbg("RadioCountToLedsC", "Received packet form  %hhu.\n", rcm->id);
+      local.id = rcm->id;
       if (rcm->counter & 0x1) {
 	call Leds.led0On();
       }
@@ -133,7 +149,10 @@ implementation {
       else {
 	call Leds.led2Off();
       }
-      return bufPtr;
+
+      call AMSend.send(AM_BROADCAST_ADDR, bufPtr, sizeof(radio_count_msg_t));
+      dbg("RadioCountToLedsC", "*******************Packet %hhu sent.\n",rcm->id);
+      return call Pool.get();
     }
   }
 
@@ -141,6 +160,7 @@ implementation {
     if (&packet == bufPtr) {
       locked = FALSE;
     }
+    call Pool.put(bufPtr);
   }
 
 }
