@@ -1,7 +1,5 @@
 #!/bin/bash
 #
-# Duplicates what is in tools/platforms/msp430/toolchain*
-#
 # BUILD_ROOT is assumed to be the same directory as the build.sh file.
 #
 # set TOSROOT to the head of the tinyos source tree root.
@@ -11,18 +9,22 @@
 # Env variables used....
 #
 # TOSROOT	head of the tinyos source tree root.  Used for base of default repo
-# PACKAGES_DIR	where packages get stashed.  Defaults to $(TOSROOT)/packages
-# REPO_DEST	Where the repository is being built (no default)
+# PACKAGES_DIR	where packages get stashed.  Defaults to ${BUILD_ROOT}/packages
+# REPO_DEST	Where the repository is being built (${TOSROOT}/packaging/repo)
 # DEB_DEST	final home once installed.
 # CODENAME	which part of the repository to place this build in.
 #
 # REPO_DEST	must contain a conf/distributions file for reprepro to work
-#		properly.   One can be copied from $(TOSROOT)/tools/repo/conf.
+#		properly.   Examples of reprepo configuration can be found in
+#               ${TOSROOT}/packaging/repo/conf.
 #
 
 COMMON_FUNCTIONS_SCRIPT=../functions-build.sh
 source ${COMMON_FUNCTIONS_SCRIPT}
 
+
+BUILD_ROOT=$(pwd)
+CODENAME=squeeze
 
 SOURCENAME=tinyos-tools
 SOURCEVERSION=1.4.3
@@ -34,8 +36,8 @@ MAKE="make -j8"
 download()
 {
   mkdir -p ${SOURCEDIRNAME}
-	cp -R ${TOSROOT}/tools ${SOURCEDIRNAME}
-	cp -R ${TOSROOT}/licenses ${SOURCEDIRNAME}
+  cp -R ${TOSROOT}/tools ${SOURCEDIRNAME}
+  cp -R ${TOSROOT}/licenses ${SOURCEDIRNAME}
 }
 
 build()
@@ -51,7 +53,7 @@ build()
 
 installto()
 {
-	cd ${SOURCEDIRNAME}/tools
+  cd ${SOURCEDIRNAME}/tools
   ${MAKE} DESTDIR=${INSTALLDIR} install
 }
 
@@ -75,13 +77,12 @@ cleaninstall(){
   remove ${INSTALLDIR}
 }
 
-#main funcition
-BUILD_ROOT=$(pwd)
+#main function
 case $1 in
   test)
-		installto
-# 		cd ${BUILD_ROOT}
-#		package_deb
+    installto
+#   cd ${BUILD_ROOT}
+#   package_deb
     ;;
 
   download)
@@ -100,8 +101,8 @@ case $1 in
     ;;
 
   deb)
-		setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
-		cd ${BUILD_ROOT}
+    setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
+    cd ${BUILD_ROOT}
     download
     cd ${BUILD_ROOT}
     build
@@ -113,9 +114,18 @@ case $1 in
     cleaninstall
     ;;
 
+  sign)
+    setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
+    if [[ -z "$2" ]]; then
+        dpkg-sig -s builder ${PACKAGES_DIR}/*
+    else
+        dpkg-sig -s builder -k $2 ${PACKAGES_DIR}/*
+    fi
+    ;;
+
   rpm)
-		setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
-		cd ${BUILD_ROOT}
+    setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
+    cd ${BUILD_ROOT}
     download
     cd ${BUILD_ROOT}
     build
@@ -125,6 +135,16 @@ case $1 in
     package_rpm
     cd ${BUILD_ROOT}
     cleaninstall
+    ;;
+
+  repo)
+    setup_package_target ${SOURCENAME} ${SOURCEVERSION} ${PACKAGE_RELEASE}
+    if [[ -z "${REPO_DEST}" ]]; then
+      REPO_DEST=${TOSROOT}/packaging/repo
+    fi
+    echo -e "\n*** Building Repository: [${CODENAME}] -> ${REPO_DEST}"
+    echo -e   "*** Using packages from ${PACKAGES_DIR}\n"
+    find ${PACKAGES_DIR} -iname "*.deb" -exec reprepro -b ${REPO_DEST} includedeb ${CODENAME} '{}' \;
     ;;
 
   local)
@@ -145,6 +165,5 @@ case $1 in
 
   *)
     echo -e "\n./build.sh <target>"
-    echo -e "    local | rpm | deb | clean | veryclean | download | tarball"
+    echo -e "    local | rpm | deb | sign | repo | clean | veryclean | download | tarball"
 esac
-
